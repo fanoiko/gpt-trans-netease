@@ -51,85 +51,127 @@ export function Settings(props) {
 		}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 	}, []);
 
-	const [ model, setModel ] = useState(getSetting('model', 'gpt-3.5-turbo'));
-	const [ apiType, setApiType ] = useState(getSetting('api-type', 'public'));
-	const [ apiEndpoint, setApiEndpoint ] = useState(getSetting('public-api-endpoint', 'https://chatgpt-api.shn.hk/v1/'));
+	const [ apiEndpoint, setApiEndpoint ] = useState(getSetting('api-endpoint', 'https://api.openai.com/v1/'));
 	const [ apiKey, setApiKey ] = useState(getSetting('api-key', ''));
+	const [ model, setModel ] = useState(getSetting('model', 'gpt-3.5-turbo'));
+	const [ temperature, setTemperature ] = useState(getSetting('temperature', '0.8'));
+	const [ topP, setTopP ] = useState(getSetting('top-p', '-1'));
+	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}'));
 
 	return (
 		<ThemeProvider theme={themes[theme]}>
 			<div className='lyric-bar-settings' style={{padding: '15px'}}>
 				<Stack direction="column" spacing={2}>
 					<Typography gutterBottom>在没有中文翻译的歌词界面，点击右侧栏的 GPT 小图标以开始翻译</Typography>
-					<FormGroup>					
+					<FormGroup>
 						<Stack direction="column" spacing={2} alignItems="flex-start">
-							<FormControl fullWidth>
-								<InputLabel id="gpt-model">模型</InputLabel>
-								<Select
-									labelId="gpt-model"
-									defaultValue={model}
-									label="模型"
-									onChange={(e) => {
-										setModel(e.target.value);
-										setSetting('model', e.target.value);
+							<TextField
+								label="API URL"
+								fullWidth
+								variant="filled"
+								defaultValue={getSetting('api-endpoint', 'https://api.openai.com/v1/')}
+								onChange={(e) => {
+									setApiEndpoint(e.target.value);
+									setSetting('api-endpoint', e.target.value);
+								}}
+								helperText="OpenAI兼容的API地址，如：https://api.openai.com/v1/"
+								error={
+									!apiEndpoint.startsWith('https://') &&
+									!apiEndpoint.startsWith('http://')
+								}
+							/>
+
+							<TextField
+								label="API Key"
+								fullWidth
+								variant="filled"
+								defaultValue={getSetting('api-key', '')}
+								onChange={(e) => {
+									setApiKey(e.target.value);
+									setSetting('api-key', e.target.value);
+								}}
+								helperText="输入 API 密钥"
+							/>
+
+							<TextField
+								label="模型名称"
+								fullWidth
+								variant="filled"
+								defaultValue={getSetting('model', 'gpt-3.5-turbo')}
+								onChange={(e) => {
+									setModel(e.target.value);
+									setSetting('model', e.target.value);
+								}}
+								helperText="输入模型名称，如：gpt-3.5-turbo, deepseek-chat 等"
+							/>
+
+							<Stack direction="row" spacing={2} style={{ width: '100%' }}>
+								<TextField
+									label="模型温度"
+									fullWidth
+									variant="filled"
+									type="number"
+									inputProps={{
+										min: -1,
+										max: 2,
+										step: 0.1
 									}}
-								>
-									<MenuItem value={'gpt-3.5-turbo'}>GPT-3.5-turbo</MenuItem>
-									<MenuItem value={'gpt-4'}>GPT-4</MenuItem>
-								</Select>
-							</FormControl>
-							<FormControl style={{ width: 'fit-content' }}>
-								<FormLabel>API</FormLabel>
-								<RadioGroup	row defaultValue={getSetting('api-type', 'public')} onChange={(e) => {
-									setApiType(e.target.value);
-									setSetting('api-type', e.target.value);
-								}}>
-									<FormControlLabel value="public" control={<Radio />} label="Public API Endpoint" />
-									<FormControlLabel value="custom" control={<Radio />} label="API Key" />
-								</RadioGroup>
-							</FormControl>
-							
-							{
-								apiType === 'public' &&
-									<TextField
-										label="Public API Endpoint URL"
-										fullWidth
-										variant="filled"
-										defaultValue={getSetting('public-api-endpoint', 'https://chatgpt-api.shn.hk/v1/')}
-										onChange={(e) => {
-											setApiEndpoint(e.target.value);
-											setSetting('public-api-endpoint', e.target.value);
-										}}
-										error={
-											!apiEndpoint.startsWith('https://') &&
-											!apiEndpoint.startsWith('http://')
-										}
-									/>
-							}
-							{
-								apiType === 'custom' &&
-									<TextField
-										label="API Key"
-										fullWidth
-										variant="filled"
-										defaultValue={getSetting('api-key', '')}
-										onChange={(e) => {
-											setApiKey(e.target.value);
-											setSetting('api-key', e.target.value);
-										}}
-										error={!/^sk-[0-9A-Za-z]{48}$/.test(apiKey)}
-									/>
-							}
+									defaultValue={getSetting('temperature', '0.8')}
+									onChange={(e) => {
+										const value = e.target.value;
+										setTemperature(value);
+										setSetting('temperature', value);
+									}}
+									helperText="范围：-1（关闭）, 0~2，默认0.8"
+									error={temperature !== '' && (temperature < -1 || temperature > 2)}
+								/>
+								<TextField
+									label="Top-P"
+									fullWidth
+									variant="filled"
+									type="number"
+									inputProps={{
+										min: -1,
+										max: 1,
+										step: 0.1
+									}}
+									defaultValue={getSetting('top-p', '-1')}
+									onChange={(e) => {
+										const value = e.target.value;
+										setTopP(value);
+										setSetting('top-p', value);
+									}}
+									helperText="范围：-1（关闭）, 0~1，默认-1"
+									error={topP !== '' && (topP < -1 || topP > 1)}
+								/>
+							</Stack>
+
+							<TextField
+								label="提示词"
+								fullWidth
+								variant="filled"
+								multiline
+								minRows={4}
+								maxRows={8}
+								defaultValue={getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}')}
+								onChange={(e) => {
+									setPrompt(e.target.value);
+									setSetting('prompt', e.target.value);
+								}}
+								helperText="使用 {lyrics} 表示歌词内容。示例：将以下歌词翻译成简体中文，保持原意和韵律：\n{lyrics}"
+							/>
 
 							
-							<Button variant="outlined" onClick={async () => {
-								await betterncm.fs.mkdir('gpt-translated-lyrics');
-								await betterncm.app.exec(
-									`explorer "${await betterncm.app.getDataPath()}\\gpt-translated-lyrics"`,
-									false,
-									true,
-								);
-							}}>打开缓存目录</Button>
+							<Stack direction="row" spacing={2} style={{ width: '100%' }}>
+								<Button variant="outlined" onClick={async () => {
+									await betterncm.fs.mkdir('gpt-translated-lyrics');
+									await betterncm.app.exec(
+										`explorer "${await betterncm.app.getDataPath()}\\gpt-translated-lyrics"`,
+										false,
+										true,
+									);
+								}}>打开缓存目录</Button>
+							</Stack>
 						</Stack>
 					</FormGroup>
 				</Stack>

@@ -35,9 +35,13 @@ const getGPTTranslation = async (originalLyrics, onStream, onDone) => {
 	const model = getSetting('model', 'gpt-3.5-turbo');
 	const encodedLyrics = originalLyrics.map((x, i) => `${i+1}. ${x.trim()}`).join('\n');
 	//console.log('encodedLyrics', encodedLyrics);
+
+	const customPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
+	const finalPrompt = customPrompt.replace('{lyrics}', encodedLyrics);
+
 	const stream = await getChatCompletionStream([
 		//{ content: "You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2021-09\nCurrent date: 2023-03-08", role: "system"},
-		{ content: `Translate the following lyrics into Simplified Chinese:\n${encodedLyrics}`, role: "user"}
+		{ content: finalPrompt, role: "user"}
 	]);
 	const reader = stream.getReader();
 	while (true) {
@@ -139,10 +143,13 @@ const onLyricsUpdate = async (e) => {
 			}
 		}
 	}
-	
+
 	const model = localLyrics?.model ?? getSetting('model', 'gpt-3.5-turbo');
-	
+	// 检查缓存版本，只对旧版本（promptVersion: 1）进行升级
+	const needsUpgrade = localLyrics?.promptVersion === 1;
+
 	console.log('local gpt-translated lyrics', localLyrics);
+	console.log('缓存需要升级:', needsUpgrade);
 
 	let curIndex = 0;
 	let buffer = '\n', fullGPTResponse = '';
@@ -181,7 +188,36 @@ const onLyricsUpdate = async (e) => {
 		document.dispatchEvent(new CustomEvent('gpt-task-done', { detail: { taskID }}));
 	}
 	if (localLyrics) {
-		await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
+		if (needsUpgrade) {
+			// 旧版本缓存，先使用缓存显示，然后在后台升级
+			console.log('升级旧版本缓存...');
+			await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
+
+			// 在后台升级缓存
+			setTimeout(async () => {
+				try {
+					const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
+					const upgradeContent = JSON.stringify({
+						model: localLyrics.model || getSetting('model', 'gpt-3.5-turbo'),
+						GPTResponse: localLyrics.GPTResponse.trim(),
+						promptVersion: 2,
+						promptText: currentPrompt,
+						savedAt: new Date().toISOString(),
+						upgradedFrom: 1
+					});
+					await betterncm.fs.writeFile(`gpt-translated-lyrics/${hash}.txt`,
+						new Blob([upgradeContent], {
+							type: 'text/plain'
+						})
+					);
+					console.log('缓存升级完成');
+				} catch (error) {
+					console.error('缓存升级失败:', error);
+				}
+			}, 1000);
+		} else {
+			await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
+		}
 		return;
 	}
 	document.body.classList.add('can-genereate-gpt-translation');
@@ -220,13 +256,16 @@ const onLyricsUpdate = async (e) => {
 };
 
 const saveLocalLyrics = async (hash, fullGPTResponse, model) => {
+	const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
 	const content = JSON.stringify({
 		model,
 		GPTResponse: fullGPTResponse.trim(),
-		promptVersion: 1
+		promptVersion: 2,
+		promptText: currentPrompt,
+		savedAt: new Date().toISOString()
 	});
 	await betterncm.fs.mkdir('gpt-translated-lyrics');
-	await betterncm.fs.writeFile(`gpt-translated-lyrics/${hash}.txt`, 
+	await betterncm.fs.writeFile(`gpt-translated-lyrics/${hash}.txt`,
 		new Blob([content], {
 			type: 'text/plain'
 		})
