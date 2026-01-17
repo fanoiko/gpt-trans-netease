@@ -76,8 +76,20 @@ const getGPTTranslation = async (originalLyrics, onStream, onDone, taskID) => {
 	}
 	onDone(model);
 }
-const getLocalGPTTranslation = async (lyrics, onStream, onDone) => {
-	onStream(lyrics);
+const getLocalGPTTranslation = async (lyricsData, onStream, onDone, hash) => {
+	if (lyricsData.Lyrics && typeof lyricsData.Lyrics === 'object') {
+		const lyricsObj = lyricsData.Lyrics;
+		const lines = Object.keys(lyricsObj)
+			.sort((a, b) => parseInt(a) - parseInt(b))
+			.map(key => `${key}. ${lyricsObj[key]}`);
+		onStream(lines.join('\n'));
+	} else {
+		try {
+			await betterncm.fs.unlink(`gpt-translated-lyrics/${hash}.txt`);
+		} catch (error) {
+			console.error(error);
+		}
+	}
 	onDone();
 }
 
@@ -147,27 +159,46 @@ const onLyricsUpdate = async (e) => {
 	if (localLyrics) {
 		try {
 			localLyrics = JSON.parse(localLyrics);
+
+			// 版本兼容
+			if (localLyrics.version === 2) {
+			} else {
+				localLyrics = {
+					model: 'gpt-3.5-turbo',
+					temperature: 0.8,
+					topP: -1,
+					Lyrics: parseLyricsToObject(typeof localLyrics === 'string' ? localLyrics : ''),
+					prompt: 'Translate the following lyrics into Simplified Chinese:\n{lyrics}',
+					version: 2,
+					savedAt: new Date().toISOString()
+				};
+			}
 		} catch {
 			localLyrics = {
 				model: 'gpt-3.5-turbo',
-				GPTResponse: localLyrics,
-				promptVersion: 1,
-			}
+				temperature: 0.8,
+				topP: -1,
+				Lyrics: parseLyricsToObject(localLyrics),
+				prompt: 'Translate the following lyrics into Simplified Chinese:\n{lyrics}',
+				version: 2,
+				savedAt: new Date().toISOString()
+			};
 		}
 	}
 
 	const model = localLyrics?.model ?? getSetting('model', 'gpt-3.5-turbo');
-	// 检查缓存版本，只对旧版本（promptVersion: 1）进行升级
-	const needsUpgrade = localLyrics?.promptVersion === 1;
-
 	const currentModel = getSetting('model', 'gpt-3.5-turbo');
 	const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
+	const currentTemperature = parseFloat(getSetting('temperature', '0.8'));
+	const currentTopP = parseFloat(getSetting('top-p', '-1'));
+
 	const configMatches = localLyrics &&
 		localLyrics.model === currentModel &&
-		localLyrics.promptText === currentPrompt;
+		localLyrics.prompt === currentPrompt &&
+		Math.abs((localLyrics.temperature || 0.8) - currentTemperature) < 0.01 &&
+		Math.abs((localLyrics.topP || -1) - currentTopP) < 0.01;
 
-	console.log('local gpt-translated lyrics', localLyrics);
-	console.log('缓存需要升级:', needsUpgrade);
+	//console.log('local gpt-translated lyrics', localLyrics);
 
 	let curIndex = 0;
 	let buffer = '\n', fullGPTResponse = '';
@@ -206,33 +237,8 @@ const onLyricsUpdate = async (e) => {
 		document.dispatchEvent(new CustomEvent('gpt-task-done', { detail: { taskID }}));
 	}
 	if (localLyrics) {
-		if (needsUpgrade) {
-			await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
-
-			setTimeout(async () => {
-				try {
-					const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
-					const upgradeContent = JSON.stringify({
-						model: localLyrics.model || getSetting('model', 'gpt-3.5-turbo'),
-						GPTResponse: localLyrics.GPTResponse.trim(),
-						promptVersion: 2,
-						promptText: currentPrompt,
-						savedAt: new Date().toISOString(),
-						upgradedFrom: 1
-					});
-					await betterncm.fs.writeFile(`gpt-translated-lyrics/${hash}.txt`,
-						new Blob([upgradeContent], {
-							type: 'text/plain'
-						})
-					);
-				} catch (error) {
-					console.error('缓存升级失败:', error);
-				}
-			}, 1000);
-		} else {
-			await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
-		}
-		// 配置匹配时直接使用缓存，不匹配时显示翻译按钮
+		await getLocalGPTTranslation(localLyrics, onStream, onDone, hash);
+		// 缓存与配置不符时显示翻译按钮
 		if (configMatches) {
 			return;
 		}
@@ -282,15 +288,48 @@ const onLyricsUpdate = async (e) => {
 	//await simulateGPTTranslation(originalLyrics, onStream, onDone);
 };
 
+const parseLyricsToObject = (lyricsText) => {
+	const lines = lyricsText.trim().split('\n');
+	const lyricsObj = {};
+	let currentLineNumber = 1;
+
+	// 提取行号，无则自增
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (trimmedLine) {
+			const lineNumberMatch = trimmedLine.match(/^(\d+)[\.、]\s*/);
+
+			if (lineNumberMatch) {
+				const lineNumber = parseInt(lineNumberMatch[1], 10);
+				const cleanLine = trimmedLine.replace(/^\d+[\.、]\s*/, '');
+				lyricsObj[lineNumber.toString()] = cleanLine;
+				currentLineNumber = lineNumber + 1;
+			} else {
+				lyricsObj[currentLineNumber.toString()] = trimmedLine;
+				currentLineNumber++;
+			}
+		}
+	}
+
+	return lyricsObj;
+};
+
 const saveLocalLyrics = async (hash, fullGPTResponse, model) => {
 	const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
+	const temperature = getSetting('temperature', '0.8');
+	const topP = getSetting('top-p', '-1');
+	const lyricsObj = parseLyricsToObject(fullGPTResponse);
+
 	const content = JSON.stringify({
 		model,
-		GPTResponse: fullGPTResponse.trim(),
-		promptVersion: 2,
-		promptText: currentPrompt,
+		temperature: parseFloat(temperature),
+		topP: parseFloat(topP),
+		Lyrics: lyricsObj,
+		prompt: currentPrompt,
+		version: 2,
 		savedAt: new Date().toISOString()
-	});
+	}, null, 2);
+
 	await betterncm.fs.mkdir('gpt-translated-lyrics');
 	await betterncm.fs.writeFile(`gpt-translated-lyrics/${hash}.txt`,
 		new Blob([content], {

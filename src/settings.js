@@ -46,7 +46,7 @@ export function Settings(props) {
 	const [ model, setModel ] = useState(getSetting('model', 'gpt-3.5-turbo'));
 	const [ temperature, setTemperature ] = useState(getSetting('temperature', '0.8'));
 	const [ topP, setTopP ] = useState(getSetting('top-p', '-1'));
-	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}'));
+	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese and output with line numbers preserved:\n{lyrics}'));
 	const [ availableModels, setAvailableModels ] = useState([]);
 
 	useEffect(() => {
