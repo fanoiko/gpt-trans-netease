@@ -5,12 +5,6 @@ import { Settings } from './settings.js'
 import { getSetting } from './utils.js'
 import { createRoot } from 'react-dom/client'
 
-const getModelDisplayName = (model) => {
-	return {
-		'gpt-3.5-turbo': 'GPT-3.5-Turbo',
-		'gpt-4': 'GPT-4',
-	}[model] ?? 'GPT';
-}
 const parseEventSource = (data) => {
 	const result = data
 		.split('\n\n')
@@ -175,7 +169,7 @@ const onLyricsUpdate = async (e) => {
 		if (window.currentLyrics?.hash === hash) {
 			window.currentLyrics.lyrics = lyrics;
 			window.currentLyrics.amend = true;
-			window.currentLyrics.contributors.translation = { name: getModelDisplayName(model) };
+			window.currentLyrics.contributors.translation = { name: model };
 			document.dispatchEvent(new CustomEvent('lyrics-updated', {detail: window.currentLyrics}));
 		}
 		//console.log(fullGPTResponse);
@@ -189,11 +183,8 @@ const onLyricsUpdate = async (e) => {
 	}
 	if (localLyrics) {
 		if (needsUpgrade) {
-			// 旧版本缓存，先使用缓存显示，然后在后台升级
-			console.log('升级旧版本缓存...');
 			await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
 
-			// 在后台升级缓存
 			setTimeout(async () => {
 				try {
 					const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
@@ -210,7 +201,6 @@ const onLyricsUpdate = async (e) => {
 							type: 'text/plain'
 						})
 					);
-					console.log('缓存升级完成');
 				} catch (error) {
 					console.error('缓存升级失败:', error);
 				}
