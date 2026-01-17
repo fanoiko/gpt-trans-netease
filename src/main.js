@@ -25,19 +25,38 @@ const parseEventSource = (data) => {
 	return result;
 };
 
-const getGPTTranslation = async (originalLyrics, onStream, onDone) => {
+const getGPTTranslation = async (originalLyrics, onStream, onDone, taskID) => {
 	const model = getSetting('model', 'gpt-3.5-turbo');
 	const encodedLyrics = originalLyrics.map((x, i) => `${i+1}. ${x.trim()}`).join('\n');
-	//console.log('encodedLyrics', encodedLyrics);
 
 	const customPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
 	const finalPrompt = customPrompt.replace('{lyrics}', encodedLyrics);
 
-	const stream = await getChatCompletionStream([
-		//{ content: "You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2021-09\nCurrent date: 2023-03-08", role: "system"},
+	const response = await getChatCompletionStream([
 		{ content: finalPrompt, role: "user"}
 	]);
-	const reader = stream.getReader();
+
+	if (response.nonStream) {
+		let fakeProgress = 0;
+		const fakeProgressInterval = setInterval(() => {
+			fakeProgress += 4.75;
+			if (fakeProgress > 95) fakeProgress = 95;
+			document.dispatchEvent(new CustomEvent('gpt-task-progress', {
+				detail: { taskID, progress: fakeProgress }
+			}));
+		}, 1000);
+
+		const content = response.data.choices[0].message.content;
+		onStream(content);
+		clearInterval(fakeProgressInterval);
+		document.dispatchEvent(new CustomEvent('gpt-task-progress', {
+			detail: { taskID, progress: 100 }
+		}));
+		onDone(model);
+		return;
+	}
+
+	const reader = response.getReader();
 	while (true) {
 		const {done, value} = await reader.read();
 		const result = parseEventSource(new TextDecoder().decode(value));
@@ -53,7 +72,6 @@ const getGPTTranslation = async (originalLyrics, onStream, onDone) => {
 				return output;
 			}
 		}, '');
-		//console.log(resultString);
 		onStream(resultString);
 	}
 	onDone(model);
@@ -142,6 +160,12 @@ const onLyricsUpdate = async (e) => {
 	// 检查缓存版本，只对旧版本（promptVersion: 1）进行升级
 	const needsUpgrade = localLyrics?.promptVersion === 1;
 
+	const currentModel = getSetting('model', 'gpt-3.5-turbo');
+	const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
+	const configMatches = localLyrics &&
+		localLyrics.model === currentModel &&
+		localLyrics.promptText === currentPrompt;
+
 	console.log('local gpt-translated lyrics', localLyrics);
 	console.log('缓存需要升级:', needsUpgrade);
 
@@ -208,7 +232,10 @@ const onLyricsUpdate = async (e) => {
 		} else {
 			await getLocalGPTTranslation(localLyrics.GPTResponse, onStream, onDone);
 		}
-		return;
+		// 配置匹配时直接使用缓存，不匹配时显示翻译按钮
+		if (configMatches) {
+			return;
+		}
 	}
 	document.body.classList.add('can-genereate-gpt-translation');
 	window.generateGPTTranslation = async () => {
@@ -216,7 +243,17 @@ const onLyricsUpdate = async (e) => {
 		document.body.classList.remove('can-genereate-gpt-translation');
 		document.dispatchEvent(new CustomEvent('gpt-new-task', { detail: { taskID, songID, songName }}));
 		try {
-			await getGPTTranslation(originalLyrics, onStream, onDone);
+			if (localLyrics && !configMatches) {
+				if (window.currentLyrics?.hash === hash) {
+					window.currentLyrics.lyrics = window.currentLyrics.lyrics.map((x) => {
+						delete x.translatedLyric;
+						return x;
+					});
+					window.currentLyrics.amend = false;
+					document.dispatchEvent(new CustomEvent('lyrics-updated', { detail: window.currentLyrics }));
+				}
+			}
+			await getGPTTranslation(originalLyrics, onStream, onDone, taskID);
 		} catch (error) {
 			if (window.currentLyrics?.hash === hash) {
 				window.currentLyrics.lyrics = window.currentLyrics.lyrics.map((x) => {

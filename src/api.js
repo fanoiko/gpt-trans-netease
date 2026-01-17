@@ -62,7 +62,9 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 
 	const contentType = response.headers.get('content-type');
 	if (!contentType || !contentType.includes('text/event-stream')) {
-		console.warn('API响应不是流式格式，content-type:', contentType);
+		console.warn('API响应非流式格式, 降级处理; content-type:', contentType);
+		const data = await response.json();
+		return { nonStream: true, data };
 	}
 
 	const stream = response.body;
@@ -77,7 +79,6 @@ export const getChatCompletionStream = async (messages) => {
 	const apiEndpoint = getSetting('api-endpoint', 'https://api.openai.com/v1/');
 	const apiKey = getSetting('api-key', '');
 
-	// 确保apiEndpoint是字符串
 	const endpoint = String(apiEndpoint || '');
 
 	try {
@@ -92,7 +93,6 @@ export const getChatCompletionStream = async (messages) => {
 // 获取可用模型列表
 export const getAvailableModels = async (apiEndpoint, apiKey) => {
 	try {
-		// 确保apiEndpoint是字符串
 		const endpointStr = String(apiEndpoint || '');
 		if (!endpointStr) {
 			return [];
