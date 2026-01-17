@@ -86,3 +86,44 @@ export const getChatCompletionStream = async (messages) => {
 
 	return getChatCompletionStreamInternal(apiEndpoint, apiKey, messages);
 }
+
+// 获取可用模型列表
+export const getAvailableModels = async (apiEndpoint, apiKey) => {
+	try {
+		let endpoint = apiEndpoint;
+		if (!endpoint.endsWith('/')) {
+			endpoint += '/';
+		}
+
+		const headers = {
+			'Content-Type': 'application/json'
+		};
+
+		if (apiKey && apiKey.trim() !== '') {
+			headers['Authorization'] = `Bearer ${apiKey}`;
+		}
+
+		const response = await fetch(endpoint + 'models', {
+			method: 'GET',
+			headers: headers
+		});
+
+		if (!response.ok) {
+			return [];
+		}
+
+		const data = await response.json();
+
+		if (data && data.data && Array.isArray(data.data)) {
+			return data.data.map(model => model.id).sort();
+		}
+
+		if (Array.isArray(data)) {
+			return data.map(model => model.id || model).sort();
+		}
+
+		return [];
+	} catch (error) {
+		return [];
+	}
+}

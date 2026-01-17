@@ -1,4 +1,5 @@
 import { getSetting, setSetting } from './utils.js';
+import { getAvailableModels } from './api.js';
 
 import * as React from 'react';
 import TextField from '@mui/material/TextField';
@@ -11,9 +12,7 @@ import FormLabel from '@mui/material/FormLabel';
 import RadioGroup from '@mui/material/RadioGroup';
 import Radio from '@mui/material/Radio';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import InputLabel from '@mui/material/InputLabel';
+import Autocomplete from '@mui/material/Autocomplete';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 const useState = React.useState;
@@ -57,6 +56,23 @@ export function Settings(props) {
 	const [ temperature, setTemperature ] = useState(getSetting('temperature', '0.8'));
 	const [ topP, setTopP ] = useState(getSetting('top-p', '-1'));
 	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}'));
+	const [ availableModels, setAvailableModels ] = useState([]);
+
+	useEffect(() => {
+		const fetchModelsIfNeeded = async () => {
+			if (!model && apiEndpoint && apiEndpoint.trim() !== '') {
+				try {
+					const models = await getAvailableModels(apiEndpoint, apiKey);
+					setAvailableModels(models);
+				} catch (error) {
+					setAvailableModels([]);
+				}
+			}
+		};
+
+		const timeoutId = setTimeout(fetchModelsIfNeeded, 500);
+		return () => clearTimeout(timeoutId);
+	}, [apiEndpoint, apiKey, model]);
 
 	return (
 		<ThemeProvider theme={themes[theme]}>
@@ -64,7 +80,7 @@ export function Settings(props) {
 				<Stack direction="column" spacing={2}>
 					<Typography gutterBottom>在没有中文翻译的歌词界面，点击右侧栏的 GPT 小图标以开始翻译</Typography>
 					<FormGroup>
-						<Stack direction="column" spacing={2} alignItems="flex-start">
+						<Stack direction="column" spacing={2}>
 							<TextField
 								label="API URL"
 								fullWidth
@@ -93,16 +109,43 @@ export function Settings(props) {
 								helperText="输入 API 密钥"
 							/>
 
-							<TextField
-								label="模型名称"
-								fullWidth
-								variant="filled"
-								defaultValue={getSetting('model', 'gpt-3.5-turbo')}
-								onChange={(e) => {
-									setModel(e.target.value);
-									setSetting('model', e.target.value);
+							<Autocomplete
+								freeSolo
+								options={availableModels}
+								value={model}
+								onChange={(event, newValue) => {
+									if (newValue !== null) {
+										setModel(newValue);
+										setSetting('model', newValue);
+									}
 								}}
-								helperText="输入模型名称，如：gpt-3.5-turbo, deepseek-chat 等"
+								onInputChange={(event, newInputValue) => {
+									setModel(newInputValue);
+									setSetting('model', newInputValue);
+								}}
+								renderInput={(params) => (
+									<TextField
+										{...params}
+										label="模型名称"
+										variant="filled"
+										helperText="输入模型名称，如：gpt-3.5-turbo, deepseek-chat 等"
+										fullWidth
+									/>
+								)}
+								disableClearable
+								forcePopupIcon={false}
+								openOnFocus={availableModels.length > 0}
+								loading={false}
+								loadingText=""
+								noOptionsText=""
+								filterOptions={(options, state) => options}
+								sx={{
+									width: '100%',
+									'& .MuiAutocomplete-endAdornment': {
+										display: 'none'
+									}
+								}}
+								fullWidth
 							/>
 
 							<Stack direction="row" spacing={2} style={{ width: '100%' }}>
