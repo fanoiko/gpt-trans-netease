@@ -1,11 +1,11 @@
 {
     "include": [
-        "./src/**/*.ts",
-        "./src/**/*.tsx",
-        "./*.css"
+        "./src/**/*.js",
+        "./src/**/*.scss"
     ],
     "exclude": [
-        "./node_modules/@types/node/**/*.ts"
+        "./node_modules",
+        "./dist"
     ],
     "compilerOptions": {
         "target": "ESNext",
@@ -16,12 +16,12 @@
         ],
         "module": "ESNext",
         "types": [],
-        "jsx": "react",
-        "jsxFactory": "h",
-        "jsxFragmentFactory": "f",
+        "jsx": "react-jsx",
         "moduleResolution": "node",
         "resolveJsonModule": true,
         "strictNullChecks": true,
-        "allowJs": false
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true
     }
 }

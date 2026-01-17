@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from './utils.js';
+import { getSetting } from './utils.js';
 
 
 // from https://github.com/ztjhz/chatgpt-free-app
@@ -8,8 +8,8 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 		endpoint += '/';
 	}
 
-	const temperature = parseFloat(getSetting('temperature', '0.8'));
-	const topP = parseFloat(getSetting('top-p', '-1'));
+	const temperature = parseFloat(String(getSetting('temperature', '0.8') || '0.8'));
+	const topP = parseFloat(String(getSetting('top-p', '-1') || '-1'));
 
 	const config = {
 		presence_penalty: 0,
@@ -36,7 +36,7 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 		method: 'POST',
 		headers: headers,
 		body: JSON.stringify({
-			model: getSetting('model', 'gpt-3.5-turbo'),
+			model: String(getSetting('model', 'gpt-3.5-turbo') || 'gpt-3.5-turbo'),
 			messages,
 			...config
 		})
@@ -76,21 +76,29 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 export const getChatCompletionStream = async (messages) => {
 	const apiEndpoint = getSetting('api-endpoint', 'https://api.openai.com/v1/');
 	const apiKey = getSetting('api-key', '');
-	console.log('using api', apiEndpoint);
+
+	// 确保apiEndpoint是字符串
+	const endpoint = String(apiEndpoint || '');
 
 	try {
-		new URL(apiEndpoint);
+		new URL(endpoint);
 	} catch (e) {
 		throw new Error('API Endpoint 不是一个正确的 URL, 请前往设置中检查');
 	}
 
-	return getChatCompletionStreamInternal(apiEndpoint, apiKey, messages);
+	return getChatCompletionStreamInternal(endpoint, apiKey, messages);
 }
 
 // 获取可用模型列表
 export const getAvailableModels = async (apiEndpoint, apiKey) => {
 	try {
-		let endpoint = apiEndpoint;
+		// 确保apiEndpoint是字符串
+		const endpointStr = String(apiEndpoint || '');
+		if (!endpointStr) {
+			return [];
+		}
+
+		let endpoint = endpointStr;
 		if (!endpoint.endsWith('/')) {
 			endpoint += '/';
 		}

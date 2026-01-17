@@ -3,24 +3,15 @@ import { getAvailableModels } from './api.js';
 
 import * as React from 'react';
 import TextField from '@mui/material/TextField';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import FormGroup from '@mui/material/FormGroup';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
-import FormControl from '@mui/material/FormControl';
-import FormLabel from '@mui/material/FormLabel';
-import RadioGroup from '@mui/material/RadioGroup';
-import Radio from '@mui/material/Radio';
 import Button from '@mui/material/Button';
 import Autocomplete from '@mui/material/Autocomplete';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 
 const useState = React.useState;
 const useEffect = React.useEffect;
-const useLayoutEffect = React.useLayoutEffect;
-const useMemo = React.useMemo;
-const useCallback = React.useCallback;
-const useRef = React.useRef;
 
 const darkTheme = createTheme({
 	palette: {
@@ -92,6 +83,7 @@ export function Settings(props) {
 								}}
 								helperText="OpenAI兼容的API地址，如：https://api.openai.com/v1/"
 								error={
+									!!apiEndpoint &&
 									!apiEndpoint.startsWith('https://') &&
 									!apiEndpoint.startsWith('http://')
 								}
@@ -112,7 +104,7 @@ export function Settings(props) {
 							<Autocomplete
 								freeSolo
 								options={availableModels}
-								value={model}
+								value={model || ''}
 								onChange={(event, newValue) => {
 									if (newValue !== null) {
 										setModel(newValue);
@@ -140,7 +132,6 @@ export function Settings(props) {
 								noOptionsText=""
 								filterOptions={(options, state) => options}
 								sx={{
-									width: '100%',
 									'& .MuiAutocomplete-endAdornment': {
 										display: 'none'
 									}
@@ -166,7 +157,7 @@ export function Settings(props) {
 										setSetting('temperature', value);
 									}}
 									helperText="范围：-1（关闭）, 0~2，默认0.8"
-									error={temperature !== '' && (temperature < -1 || temperature > 2)}
+									error={temperature !== '' && (parseFloat(temperature || '0') < -1 || parseFloat(temperature || '0') > 2)}
 								/>
 								<TextField
 									label="Top-P"
@@ -185,7 +176,7 @@ export function Settings(props) {
 										setSetting('top-p', value);
 									}}
 									helperText="范围：-1（关闭）, 0~1，默认-1"
-									error={topP !== '' && (topP < -1 || topP > 1)}
+									error={topP !== '' && (parseFloat(topP || '0') < -1 || parseFloat(topP || '0') > 1)}
 								/>
 							</Stack>
 
