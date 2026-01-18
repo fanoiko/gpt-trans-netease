@@ -1,5 +1,5 @@
 import { getSetting, setSetting } from './utils.js';
-import { getAvailableModels } from './api.js';
+import { getAvailableModels, testApiConnection } from './api.js';
 
 import * as React from 'react';
 import TextField from '@mui/material/TextField';
@@ -48,6 +48,36 @@ export function Settings(props) {
 	const [ topP, setTopP ] = useState(getSetting('top-p', '-1'));
 	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese and output with line numbers preserved:\n{lyrics}'));
 	const [ availableModels, setAvailableModels ] = useState([]);
+	const [ isTesting, setIsTesting ] = useState(false);
+	const [ testStatus, setTestStatus ] = useState(null); // null, 'success', 'error'
+	const DEFAULT_API_KEY_HELPER_TEXT = '输入 API 密钥';
+	const [ apiKeyHelperText, setApiKeyHelperText ] = useState(DEFAULT_API_KEY_HELPER_TEXT);
+
+	// API测试
+	const handleApiTest = async () => {
+		if (isTesting) return;
+
+		setIsTesting(true);
+		setTestStatus(null);
+
+		try {
+			const result = await testApiConnection(apiEndpoint, apiKey, model);
+			setTestStatus(result.success ? 'success' : 'error');
+			if (!result.success) {
+				setApiKeyHelperText(result.error);
+			}
+		} catch (error) {
+			setTestStatus('error');
+			setApiKeyHelperText(`检测异常: ${error.message}`);
+		} finally {
+			setIsTesting(false);
+		}
+
+		setTimeout(() => {
+			setTestStatus(null);
+			setApiKeyHelperText(DEFAULT_API_KEY_HELPER_TEXT);
+		}, 5000);
+	};
 
 	useEffect(() => {
 		const fetchModelsIfNeeded = async () => {
@@ -89,17 +119,53 @@ export function Settings(props) {
 								}
 							/>
 
-							<TextField
-								label="API Key"
-								fullWidth
-								variant="filled"
-								defaultValue={getSetting('api-key', '')}
-								onChange={(e) => {
-									setApiKey(e.target.value);
-									setSetting('api-key', e.target.value);
-								}}
-								helperText="输入 API 密钥"
-							/>
+							<Stack direction="row" spacing={1} alignItems="flex-start">
+								<TextField
+									label="API KEY"
+									fullWidth
+									variant="filled"
+									defaultValue={getSetting('api-key', '')}
+									onChange={(e) => {
+										const value = e.target.value;
+										setApiKey(value);
+										setSetting('api-key', value);
+										setApiKeyHelperText(DEFAULT_API_KEY_HELPER_TEXT);
+									}}
+									helperText={apiKeyHelperText}
+									error={testStatus === 'error' && apiKeyHelperText !== DEFAULT_API_KEY_HELPER_TEXT}
+									sx={{
+										'& .MuiFormHelperText-root': {
+											transition: 'color 0.3s ease, opacity 0.3s ease'
+										}
+									}}
+								/>
+								<Button
+									variant="outlined"
+									onClick={handleApiTest}	disabled={isTesting || !apiEndpoint?.trim()}
+									sx={{
+										minWidth: '90px',
+										minHeight: '56px',
+										mt: '8px',
+										borderColor: testStatus === 'success' ? 'success.main' :
+													testStatus === 'error' ? 'error.main' :
+													'divider',
+										color: testStatus === 'success' ? 'success.main' :
+												testStatus === 'error' ? 'error.main' :
+												'text.primary',
+										'&:hover': {
+											borderColor: testStatus === 'success' ? 'success.dark' :
+														testStatus === 'error' ? 'error.dark' :
+														'primary.main',
+											backgroundColor: testStatus === 'success' ? 'rgba(46, 125, 50, 0.04)' :
+															testStatus === 'error' ? 'rgba(211, 47, 47, 0.04)' :
+															'transparent'
+										},
+										position: 'relative'
+									}}
+								>
+									{isTesting ? '...' : testStatus === 'success' ? '✔' :testStatus === 'error' ? '✕' : '检测'}
+								</Button>
+							</Stack>
 
 							<Autocomplete
 								freeSolo
@@ -157,7 +223,7 @@ export function Settings(props) {
 										setSetting('temperature', value);
 									}}
 									helperText="范围：-1（关闭）, 0~2，默认0.8"
-									error={temperature !== '' && (parseFloat(temperature || '0') < -1 || parseFloat(temperature || '0') > 2)}
+									error={temperature !== '' && (parseFloat(temperature || '0') !== -1 && (parseFloat(temperature || '0') < 0 || parseFloat(temperature || '0') > 2))}
 								/>
 								<TextField
 									label="Top-P"
@@ -176,7 +242,7 @@ export function Settings(props) {
 										setSetting('top-p', value);
 									}}
 									helperText="范围：-1（关闭）, 0~1，默认-1"
-									error={topP !== '' && (parseFloat(topP || '0') < -1 || parseFloat(topP || '0') > 1)}
+									error={topP !== '' && (parseFloat(topP || '0') !== -1 && (parseFloat(topP || '0') < 0 || parseFloat(topP || '0') > 1))}
 								/>
 							</Stack>
 

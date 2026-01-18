@@ -135,3 +135,91 @@ export const getAvailableModels = async (apiEndpoint, apiKey) => {
 		return [];
 	}
 }
+
+// 检测API端点和KEY可用性
+export const testApiConnection = async (apiEndpoint, apiKey, model) => {
+	try {
+		const endpointStr = String(apiEndpoint || '');
+		if (!endpointStr) {
+			return { success: false, error: 'API地址不能为空' };
+		}
+
+		try {
+			new URL(endpointStr);
+		} catch (e) {
+			return { success: false, error: 'API地址不是一个正确的URL格式' };
+		}
+
+		if (!model || model.trim() === '') {
+			return { success: false, error: '未填写模型名称' };
+		}
+
+		let endpoint = endpointStr;
+		if (!endpoint.endsWith('/')) {
+			endpoint += '/';
+		}
+
+		const headers = {
+			'Content-Type': 'application/json'
+		};
+
+		if (apiKey && apiKey.trim() !== '') {
+			headers['Authorization'] = `Bearer ${apiKey}`;
+		}
+
+		const modelsResponse = await fetch(endpoint + 'models', {
+			method: 'GET',
+			headers: headers
+		});
+
+		if (modelsResponse.ok) {
+			return { success: true };
+		}
+
+		const testMessages = [{ role: 'user', content: 'hi' }];
+		const testConfig = {
+			model: model,
+			messages: testMessages,
+			max_tokens: 1,
+			stream: false
+		};
+
+		const chatResponse = await fetch(endpoint + 'chat/completions', {
+			method: 'POST',
+			headers: headers,
+			body: JSON.stringify(testConfig)
+		});
+
+		if (!chatResponse.ok) {
+			const errorText = await chatResponse.text().catch(() => '无法读取错误信息');
+
+			if (chatResponse.status === 401) {
+				return { success: false, error: 'API密钥无效或过期' };
+			} else if (chatResponse.status === 404 || chatResponse.status === 405) {
+				return { success: false, error: 'API端点不存在或服务不可用' };
+			} else if (chatResponse.status === 429) {
+				return { success: false, error: 'API调用频率受限' };
+			} else {
+				return { success: false, error: `API连接失败 (${chatResponse.status})` };
+			}
+		}
+
+		const data = await chatResponse.json().catch(() => null);
+		if (data && (data.error || data.message)) {
+			return { success: false, error: data.error || data.message };
+		}
+
+		return { success: true };
+	} catch (error) {
+		console.error('测试API连接时出错:', error);
+
+		if (error.name === 'TypeError' && error.message.includes('fetch')) {
+			if (endpointStr.includes('localhost') || endpointStr.includes('127.0.0.1')) {
+				return { success: false, error: '无法连接到本地服务，请确保服务正在运行' };
+			}
+			return { success: false, error: '网络连接失败，请检查API地址和网络连接' };
+		}
+
+		return { success: false, error: `连接测试异常: ${error.message.split('\n')[0]}` };
+	}
+}
