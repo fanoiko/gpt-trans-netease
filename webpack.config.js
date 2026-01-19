@@ -95,6 +95,12 @@ const config = {
       extractComments: false,
     })],
   },
+
+  performance: {
+    hints: 'warning',
+    maxEntrypointSize: 512 * 1024, // 512KB
+    maxAssetSize: 512 * 1024, // 512KB
+  },
 };
 
 module.exports = () => {
