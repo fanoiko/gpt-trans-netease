@@ -8,8 +8,8 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 		endpoint += '/';
 	}
 
-	const temperatureStr = String(getSetting('temperature', '0.8') || '0.8');
-	const topPStr = String(getSetting('top-p', '') || '');
+	const temperatureStr = String(getSetting('temperature'));
+	const topPStr = String(getSetting('top-p'));
 
 	const config = {
 		presence_penalty: 0,
@@ -37,7 +37,7 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 		method: 'POST',
 		headers: headers,
 		body: JSON.stringify({
-			model: String(getSetting('model', 'gpt-3.5-turbo') || 'gpt-3.5-turbo'),
+			model: String(getSetting('model')),
 			messages,
 			...config
 		})
@@ -67,18 +67,15 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 		const data = await response.json();
 		return { nonStream: true, data };
 	}
-
+	
 	const stream = response.body;
-	if (!stream) {
-		throw new Error('API 响应没有返回可读流');
-	}
 
 	return stream;
 }
 
 export const getChatCompletionStream = async (messages) => {
-	const apiEndpoint = getSetting('api-endpoint', 'https://api.openai.com/v1/');
-	const apiKey = getSetting('api-key', '');
+	const apiEndpoint = getSetting('api-endpoint');
+	const apiKey = getSetting('api-key');
 
 	const endpoint = String(apiEndpoint || '');
 
@@ -137,18 +134,15 @@ export const getAvailableModels = async (apiEndpoint, apiKey) => {
 	}
 }
 
-// 检测API端点和KEY可用性
+// 可用性检测
 export const testApiConnection = async (apiEndpoint, apiKey, model) => {
 	try {
 		const endpointStr = String(apiEndpoint || '');
-		if (!endpointStr) {
-			return { success: false, error: 'API地址不能为空' };
-		}
 
 		try {
 			new URL(endpointStr);
 		} catch (e) {
-			return { success: false, error: 'API地址不是一个正确的URL格式' };
+			return { success: false, error: 'API 地址不是一个正确的 URL 格式' };
 		}
 
 		if (!model || model.trim() === '') {
@@ -195,13 +189,13 @@ export const testApiConnection = async (apiEndpoint, apiKey, model) => {
 			const errorText = await chatResponse.text().catch(() => '无法读取错误信息');
 
 			if (chatResponse.status === 401) {
-				return { success: false, error: 'API密钥无效或过期' };
+				return { success: false, error: 'API 密钥无效或过期' };
 			} else if (chatResponse.status === 404 || chatResponse.status === 405) {
-				return { success: false, error: 'API端点不存在或服务不可用' };
+				return { success: false, error: 'API 端点不存在或服务不可用' };
 			} else if (chatResponse.status === 429) {
-				return { success: false, error: 'API调用频率受限' };
+				return { success: false, error: 'API 调用频率受限' };
 			} else {
-				return { success: false, error: `API连接失败 (${chatResponse.status})` };
+				return { success: false, error: `API 连接失败 (${chatResponse.status})` };
 			}
 		}
 
@@ -212,9 +206,9 @@ export const testApiConnection = async (apiEndpoint, apiKey, model) => {
 
 		return { success: true };
 	} catch (error) {
-		console.error('测试API连接时出错:', error);
+		console.error('测试 API 连接时出错:', error);
 		if (error.name === 'TypeError' && error.message.includes('fetch')) {
-			return { success: false, error: '网络连接失败，请检查API地址和网络连接' };
+			return { success: false, error: '网络连接失败，请检查 API 地址和网络连接' };
 		}
 		return { success: false, error: `连接测试异常: ${error.message.split('\n')[0]}` };
 	}

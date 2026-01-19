@@ -33,15 +33,41 @@ export const waitForElementAsync = async (selector) => {
 	}
 	return await betterncm.utils.waitForElement(selector);
 }
-export const getSetting = (option, defaultValue = '') => {
+export const getSetting = (option) => {
 	if (option.endsWith('-fm')) {
 		option = option.replace(/-fm$/, '');
 	}
 	option = "gpt-trans-" + option;
 	let value = localStorage.getItem(option);
+	
 	if (value == null) {
+		let defaultValue = '';
+		
+		switch (option) {
+			case 'gpt-trans-api-endpoint':
+				defaultValue = DEFAULT_API_ENDPOINT;
+				break;
+			case 'gpt-trans-api-key':
+				defaultValue = DEFAULT_API_KEY;
+				break;
+			case 'gpt-trans-model':
+				defaultValue = DEFAULT_MODEL;
+				break;
+			case 'gpt-trans-temperature':
+				defaultValue = DEFAULT_TEMPERATURE;
+				break;
+			case 'gpt-trans-top-p':
+				defaultValue = DEFAULT_TOP_P;
+				break;
+			case 'gpt-trans-prompt':
+				defaultValue = DEFAULT_PROMPT;
+				break;
+		}
+		
+		localStorage.setItem(option, defaultValue);
 		value = defaultValue;
 	}
+	
 	if (value === 'true') {
 		value = true;
 	} else if (value === 'false') {
@@ -87,3 +113,11 @@ export const cyrb53 = (str, seed = 0) => {
 
 	return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 };
+
+// Default value
+export const DEFAULT_API_ENDPOINT = 'https://api.openai.com/v1/';
+export const DEFAULT_API_KEY = '';
+export const DEFAULT_MODEL = 'gpt-3.5-turbo';
+export const DEFAULT_TEMPERATURE = '0.8';
+export const DEFAULT_TOP_P = '';
+export const DEFAULT_PROMPT = 'Translate the following lyrics into Simplified Chinese and output with line numbers preserved:\n{lyrics}';

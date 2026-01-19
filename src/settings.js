@@ -41,12 +41,12 @@ export function Settings(props) {
 		}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 	}, []);
 
-	const [ apiEndpoint, setApiEndpoint ] = useState(getSetting('api-endpoint', 'https://api.openai.com/v1/'));
-	const [ apiKey, setApiKey ] = useState(getSetting('api-key', ''));
-	const [ model, setModel ] = useState(getSetting('model', 'gpt-3.5-turbo'));
-	const [ temperature, setTemperature ] = useState(getSetting('temperature', '0.8'));
-	const [ topP, setTopP ] = useState(getSetting('top-p', ''));
-	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese and output with line numbers preserved:\n{lyrics}'));
+	const [ apiEndpoint, setApiEndpoint ] = useState(getSetting('api-endpoint'));
+	const [ apiKey, setApiKey ] = useState(getSetting('api-key'));
+	const [ model, setModel ] = useState(getSetting('model'));
+	const [ temperature, setTemperature ] = useState(getSetting('temperature'));
+	const [ topP, setTopP ] = useState(getSetting('top-p'));
+	const [ prompt, setPrompt ] = useState(getSetting('prompt'));
 	const [ availableModels, setAvailableModels ] = useState([]);
 	const [ isTesting, setIsTesting ] = useState(false);
 	const [ testStatus, setTestStatus ] = useState(null); // null, 'success', 'error'
@@ -54,7 +54,7 @@ export function Settings(props) {
 	const [ apiKeyHelperText, setApiKeyHelperText ] = useState(DEFAULT_API_KEY_HELPER_TEXT);
 	const [ apiConfigHash, setApiConfigHash ] = useState('');
 
-	// API测试
+	// API 测试
 	const handleApiTest = async () => {
 		if (isTesting) return;
 
@@ -112,7 +112,7 @@ export function Settings(props) {
 								label="API URL"
 								fullWidth
 								variant="filled"
-								defaultValue={getSetting('api-endpoint', 'https://api.openai.com/v1/')}
+								defaultValue={getSetting('api-endpoint')}
 								onChange={(e) => {
 									const value = e.target.value;
 									setApiEndpoint(value);
@@ -133,7 +133,7 @@ export function Settings(props) {
 									label="API KEY"
 									fullWidth
 									variant="filled"
-									defaultValue={getSetting('api-key', '')}
+									defaultValue={getSetting('api-key')}
 									onChange={(e) => {
 										const value = e.target.value;
 										setApiKey(value);
@@ -159,6 +159,7 @@ export function Settings(props) {
 								freeSolo
 								options={availableModels}
 								value={model || ''}
+								defaultValue={getSetting('model')}
 								onChange={(event, newValue) => {
 									if (newValue !== null) {
 										setModel(newValue);
@@ -178,40 +179,31 @@ export function Settings(props) {
 										fullWidth
 									/>
 								)}
-								disableClearable
 								forcePopupIcon={false}
 								openOnFocus={availableModels.length > 0}
-								loading={false}
-								loadingText=""
-								noOptionsText="没有匹配的模型"
 								autoHighlight={true}
-								autoSelect={true}
-								filterOptions={(options, state) => {
-									const inputValue = state.inputValue.trim().toLowerCase();
-									if (!inputValue) {
-										return options;
-									}
-									return options.filter(option => 
-										option.toLowerCase().includes(inputValue)
-									);
-								}}
-								renderOption={(props, option, { inputValue, selected }) => {
+								filterOptions={(options, { inputValue }) => 
+									!inputValue.trim() ? options : options.filter(option => 
+										option.toLowerCase().includes(inputValue.trim().toLowerCase())
+									)
+								}
+								renderOption={(props, option, { inputValue }) => {
 									const optionStr = String(option);
-									const inputValueLower = inputValue.trim().toLowerCase();
+									const searchText = inputValue.trim().toLowerCase();
 									const optionLower = optionStr.toLowerCase();
-									if (!inputValueLower || !optionLower.includes(inputValueLower)) {
+									
+									if (!searchText || !optionLower.includes(searchText)) {
 										return <li {...props}>{optionStr}</li>;
 									}
-									const startIndex = optionLower.indexOf(inputValueLower);
-									const endIndex = startIndex + inputValueLower.length;
-									const beforeMatch = optionStr.substring(0, startIndex);
-									const match = optionStr.substring(startIndex, endIndex);
-									const afterMatch = optionStr.substring(endIndex);
+									
+									const startIndex = optionLower.indexOf(searchText);
 									return (
 										<li {...props}>
-											{beforeMatch}
-											<strong style={{ color: '#1976d2' }}>{match}</strong>
-											{afterMatch}
+											{optionStr.substring(0, startIndex)}
+											<strong style={{ color: '#1976d2' }}>
+												{optionStr.substring(startIndex, startIndex + searchText.length)}
+											</strong>
+											{optionStr.substring(startIndex + searchText.length)}
 										</li>
 									);
 								}}
@@ -230,7 +222,7 @@ export function Settings(props) {
 										max: 2,
 										step: 0.1
 									}}
-									defaultValue={getSetting('temperature', '0.8')}
+									defaultValue={getSetting('temperature')}
 									onChange={(e) => {
 										const value = e.target.value;
 										setTemperature(value);
@@ -249,7 +241,7 @@ export function Settings(props) {
 										max: 1,
 										step: 0.1
 									}}
-									defaultValue={getSetting('top-p', '')}
+									defaultValue={getSetting('top-p')}
 									onChange={(e) => {
 										const value = e.target.value;
 										setTopP(value);
@@ -267,7 +259,7 @@ export function Settings(props) {
 								multiline
 								minRows={4}
 								maxRows={8}
-								defaultValue={getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}')}
+								defaultValue={getSetting('prompt')}
 								onChange={(e) => {
 									setPrompt(e.target.value);
 									setSetting('prompt', e.target.value);

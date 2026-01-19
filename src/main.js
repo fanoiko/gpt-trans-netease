@@ -2,7 +2,7 @@ import './style.scss'
 import { initUI } from './ui.js'
 import { getChatCompletionStream } from './api.js'
 import { Settings } from './settings.js'
-import { getSetting } from './utils.js'
+import { getSetting, DEFAULT_PROMPT } from './utils.js'
 import { createRoot } from 'react-dom/client'
 
 const parseEventSource = (data) => {
@@ -26,17 +26,21 @@ const parseEventSource = (data) => {
 };
 
 const getGPTTranslation = async (originalLyrics, onStream, onDone, taskID) => {
-	const model = getSetting('model', 'gpt-3.5-turbo');
+	const model = getSetting('model');
 	const encodedLyrics = originalLyrics.map((x, i) => `${i+1}. ${x.trim()}`).join('\n');
 
-	const customPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
-	const finalPrompt = customPrompt.replace('{lyrics}', encodedLyrics);
+	const customPrompt = getSetting('prompt');
+	const finalPrompt = (customPrompt || '').replace('{lyrics}', encodedLyrics);
 
 	const response = await getChatCompletionStream([
 		{ content: finalPrompt, role: "user"}
 	]);
 
-	if (response.nonStream) {
+	if (!response) {
+		throw new Error('API 调用失败，返回值为空');
+	}
+
+	if ('nonStream' in response && response.nonStream) {
 		let fakeProgress = 0;
 		const fakeProgressInterval = setInterval(() => {
 			fakeProgress += 4.75;
@@ -54,6 +58,10 @@ const getGPTTranslation = async (originalLyrics, onStream, onDone, taskID) => {
 		}));
 		onDone(model);
 		return;
+	}
+
+	if (!('getReader' in response)) {
+		throw new Error('API 返回了不支持的类型');
 	}
 
 	const reader = response.getReader();
@@ -168,7 +176,7 @@ const onLyricsUpdate = async (e) => {
 					temperature: 0.8,
 					topP: -1,
 					Lyrics: parseLyricsToObject(typeof localLyrics === 'string' ? localLyrics : ''),
-					prompt: 'Translate the following lyrics into Simplified Chinese:\n{lyrics}',
+					prompt: DEFAULT_PROMPT,
 					version: 2,
 					savedAt: new Date().toISOString()
 				};
@@ -179,18 +187,18 @@ const onLyricsUpdate = async (e) => {
 				temperature: 0.8,
 				topP: -1,
 				Lyrics: parseLyricsToObject(localLyrics),
-				prompt: 'Translate the following lyrics into Simplified Chinese:\n{lyrics}',
+				prompt: DEFAULT_PROMPT,
 				version: 2,
 				savedAt: new Date().toISOString()
 			};
 		}
 	}
 
-	const model = localLyrics?.model ?? getSetting('model', 'gpt-3.5-turbo');
-	const currentModel = getSetting('model', 'gpt-3.5-turbo');
-	const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
-	const currentTemperature = parseFloat(getSetting('temperature', '0.8'));
-	const currentTopP = parseFloat(getSetting('top-p', '-1'));
+	const model = localLyrics?.model ?? getSetting('model');
+	const currentModel = getSetting('model');
+	const currentPrompt = getSetting('prompt');
+	const currentTemperature = parseFloat(getSetting('temperature'));
+	const currentTopP = parseFloat(getSetting('top-p'));
 
 	const configMatches = localLyrics &&
 		localLyrics.model === currentModel &&
@@ -315,9 +323,9 @@ const parseLyricsToObject = (lyricsText) => {
 };
 
 const saveLocalLyrics = async (hash, fullGPTResponse, model) => {
-	const currentPrompt = getSetting('prompt', 'Translate the following lyrics into Simplified Chinese:\n{lyrics}');
-	const temperature = getSetting('temperature', '0.8');
-	const topP = getSetting('top-p', '-1');
+	const currentPrompt = getSetting('prompt');
+	const temperature = getSetting('temperature');
+	const topP = getSetting('top-p');
 	const lyricsObj = parseLyricsToObject(fullGPTResponse);
 
 	const content = JSON.stringify({
