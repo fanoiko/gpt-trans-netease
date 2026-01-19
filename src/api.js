@@ -8,19 +8,20 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 		endpoint += '/';
 	}
 
-	const temperature = parseFloat(String(getSetting('temperature', '0.8') || '0.8'));
-	const topP = parseFloat(String(getSetting('top-p', '-1') || '-1'));
+	const temperatureStr = String(getSetting('temperature', '0.8') || '0.8');
+	const topPStr = String(getSetting('top-p', '') || '');
 
 	const config = {
 		presence_penalty: 0,
 		stream: true
 	};
 
-	if (temperature >= 0 && temperature <= 2) {
+	const temperature = parseFloat(temperatureStr);
+	if (!isNaN(temperature) && temperature >= 0 && temperature <= 2) {
 		config.temperature = temperature;
 	}
-
-	if (topP >= 0 && topP <= 1) {
+	const topP = parseFloat(topPStr);
+	if (!isNaN(topP) && topP >= 0 && topP <= 1) {
 		config.top_p = topP;
 	}
 
@@ -53,7 +54,7 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 
 		if (response.status === 429 && errorText.includes('insufficient_quota')) {
 			throw new Error(
-				'API 调用次数已达上限, 请检查配额或更换API Key\n' + errorText
+				'API 调用次数已达上限, 请检查配额或更换 API Key\n' + errorText
 			);
 		}
 
@@ -62,14 +63,14 @@ const getChatCompletionStreamInternal = async (apiEndpoint, apiKey, messages) =>
 
 	const contentType = response.headers.get('content-type');
 	if (!contentType || !contentType.includes('text/event-stream')) {
-		console.warn('API响应非流式格式, 降级处理; content-type:', contentType);
+		//console.warn('API 响应非流式格式, 降级处理; content-type:', contentType);
 		const data = await response.json();
 		return { nonStream: true, data };
 	}
 
 	const stream = response.body;
 	if (!stream) {
-		throw new Error('API响应没有返回可读流');
+		throw new Error('API 响应没有返回可读流');
 	}
 
 	return stream;
@@ -212,14 +213,9 @@ export const testApiConnection = async (apiEndpoint, apiKey, model) => {
 		return { success: true };
 	} catch (error) {
 		console.error('测试API连接时出错:', error);
-
 		if (error.name === 'TypeError' && error.message.includes('fetch')) {
-			if (endpointStr.includes('localhost') || endpointStr.includes('127.0.0.1')) {
-				return { success: false, error: '无法连接到本地服务，请确保服务正在运行' };
-			}
 			return { success: false, error: '网络连接失败，请检查API地址和网络连接' };
 		}
-
 		return { success: false, error: `连接测试异常: ${error.message.split('\n')[0]}` };
 	}
 }

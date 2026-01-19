@@ -45,13 +45,14 @@ export function Settings(props) {
 	const [ apiKey, setApiKey ] = useState(getSetting('api-key', ''));
 	const [ model, setModel ] = useState(getSetting('model', 'gpt-3.5-turbo'));
 	const [ temperature, setTemperature ] = useState(getSetting('temperature', '0.8'));
-	const [ topP, setTopP ] = useState(getSetting('top-p', '-1'));
+	const [ topP, setTopP ] = useState(getSetting('top-p', ''));
 	const [ prompt, setPrompt ] = useState(getSetting('prompt', 'Translate the following lyrics into Simplified Chinese and output with line numbers preserved:\n{lyrics}'));
 	const [ availableModels, setAvailableModels ] = useState([]);
 	const [ isTesting, setIsTesting ] = useState(false);
 	const [ testStatus, setTestStatus ] = useState(null); // null, 'success', 'error'
 	const DEFAULT_API_KEY_HELPER_TEXT = '输入 API 密钥';
 	const [ apiKeyHelperText, setApiKeyHelperText ] = useState(DEFAULT_API_KEY_HELPER_TEXT);
+	const [ apiConfigHash, setApiConfigHash ] = useState('');
 
 	// API测试
 	const handleApiTest = async () => {
@@ -81,19 +82,24 @@ export function Settings(props) {
 
 	useEffect(() => {
 		const fetchModelsIfNeeded = async () => {
-			if (!model && apiEndpoint && apiEndpoint.trim() !== '') {
+			const hasApiConfig = apiEndpoint && apiEndpoint.trim() !== '' && apiKey && apiKey.trim() !== '';
+			const currentHash = `${apiEndpoint || ''}_${apiKey || ''}`;
+			
+			if (hasApiConfig && currentHash !== apiConfigHash) {
 				try {
 					const models = await getAvailableModels(apiEndpoint, apiKey);
 					setAvailableModels(models);
+					setApiConfigHash(currentHash);
 				} catch (error) {
 					setAvailableModels([]);
+					setApiConfigHash(currentHash);
 				}
 			}
 		};
 
 		const timeoutId = setTimeout(fetchModelsIfNeeded, 500);
 		return () => clearTimeout(timeoutId);
-	}, [apiEndpoint, apiKey, model]);
+	}, [apiEndpoint, apiKey, model, apiConfigHash]);
 
 	return (
 		<ThemeProvider theme={themes[theme]}>
@@ -108,10 +114,13 @@ export function Settings(props) {
 								variant="filled"
 								defaultValue={getSetting('api-endpoint', 'https://api.openai.com/v1/')}
 								onChange={(e) => {
-									setApiEndpoint(e.target.value);
-									setSetting('api-endpoint', e.target.value);
+									const value = e.target.value;
+									setApiEndpoint(value);
+									setSetting('api-endpoint', value);
+									setAvailableModels([]);
+									setApiConfigHash('');
 								}}
-								helperText="OpenAI兼容的API地址，如：https://api.openai.com/v1/"
+								helperText="OpenAI 兼容的 API 地址，如：https://api.openai.com/v1/"
 								error={
 									!!apiEndpoint &&
 									!apiEndpoint.startsWith('https://') &&
@@ -130,38 +139,17 @@ export function Settings(props) {
 										setApiKey(value);
 										setSetting('api-key', value);
 										setApiKeyHelperText(DEFAULT_API_KEY_HELPER_TEXT);
+										setAvailableModels([]);
+										setApiConfigHash('');
 									}}
 									helperText={apiKeyHelperText}
 									error={testStatus === 'error' && apiKeyHelperText !== DEFAULT_API_KEY_HELPER_TEXT}
-									sx={{
-										'& .MuiFormHelperText-root': {
-											transition: 'color 0.3s ease, opacity 0.3s ease'
-										}
-									}}
+									className="settings-api-key-helper"
 								/>
 								<Button
 									variant="outlined"
 									onClick={handleApiTest}	disabled={isTesting || !apiEndpoint?.trim()}
-									sx={{
-										minWidth: '90px',
-										minHeight: '56px',
-										mt: '8px',
-										borderColor: testStatus === 'success' ? 'success.main' :
-													testStatus === 'error' ? 'error.main' :
-													'divider',
-										color: testStatus === 'success' ? 'success.main' :
-												testStatus === 'error' ? 'error.main' :
-												'text.primary',
-										'&:hover': {
-											borderColor: testStatus === 'success' ? 'success.dark' :
-														testStatus === 'error' ? 'error.dark' :
-														'primary.main',
-											backgroundColor: testStatus === 'success' ? 'rgba(46, 125, 50, 0.04)' :
-															testStatus === 'error' ? 'rgba(211, 47, 47, 0.04)' :
-															'transparent'
-										},
-										position: 'relative'
-									}}
+									className={`settings-api-test-btn ${testStatus === 'success' ? 'success' : testStatus === 'error' ? 'error' : ''}`}
 								>
 									{isTesting ? '...' : testStatus === 'success' ? '✔' :testStatus === 'error' ? '✕' : '检测'}
 								</Button>
@@ -195,13 +183,39 @@ export function Settings(props) {
 								openOnFocus={availableModels.length > 0}
 								loading={false}
 								loadingText=""
-								noOptionsText=""
-								filterOptions={(options, state) => options}
-								sx={{
-									'& .MuiAutocomplete-endAdornment': {
-										display: 'none'
+								noOptionsText="没有匹配的模型"
+								autoHighlight={true}
+								autoSelect={true}
+								filterOptions={(options, state) => {
+									const inputValue = state.inputValue.trim().toLowerCase();
+									if (!inputValue) {
+										return options;
 									}
+									return options.filter(option => 
+										option.toLowerCase().includes(inputValue)
+									);
 								}}
+								renderOption={(props, option, { inputValue, selected }) => {
+									const optionStr = String(option);
+									const inputValueLower = inputValue.trim().toLowerCase();
+									const optionLower = optionStr.toLowerCase();
+									if (!inputValueLower || !optionLower.includes(inputValueLower)) {
+										return <li {...props}>{optionStr}</li>;
+									}
+									const startIndex = optionLower.indexOf(inputValueLower);
+									const endIndex = startIndex + inputValueLower.length;
+									const beforeMatch = optionStr.substring(0, startIndex);
+									const match = optionStr.substring(startIndex, endIndex);
+									const afterMatch = optionStr.substring(endIndex);
+									return (
+										<li {...props}>
+											{beforeMatch}
+											<strong style={{ color: '#1976d2' }}>{match}</strong>
+											{afterMatch}
+										</li>
+									);
+								}}
+								className="settings-model-autocomplete"
 								fullWidth
 							/>
 
@@ -212,7 +226,7 @@ export function Settings(props) {
 									variant="filled"
 									type="number"
 									inputProps={{
-										min: -1,
+										min: 0,
 										max: 2,
 										step: 0.1
 									}}
@@ -222,8 +236,8 @@ export function Settings(props) {
 										setTemperature(value);
 										setSetting('temperature', value);
 									}}
-									helperText="范围：-1（关闭）, 0~2，默认0.8"
-									error={temperature !== '' && (parseFloat(temperature || '0') !== -1 && (parseFloat(temperature || '0') < 0 || parseFloat(temperature || '0') > 2))}
+									helperText="范围：0~2，默认0.8，留空不使用"
+									error={temperature !== '' && temperature !== null && !(parseFloat(temperature || '0') >= 0 && parseFloat(temperature || '0') <= 2)}
 								/>
 								<TextField
 									label="Top-P"
@@ -231,18 +245,18 @@ export function Settings(props) {
 									variant="filled"
 									type="number"
 									inputProps={{
-										min: -1,
+										min: 0,
 										max: 1,
 										step: 0.1
 									}}
-									defaultValue={getSetting('top-p', '-1')}
+									defaultValue={getSetting('top-p', '')}
 									onChange={(e) => {
 										const value = e.target.value;
 										setTopP(value);
 										setSetting('top-p', value);
 									}}
-									helperText="范围：-1（关闭）, 0~1，默认-1"
-									error={topP !== '' && (parseFloat(topP || '0') !== -1 && (parseFloat(topP || '0') < 0 || parseFloat(topP || '0') > 1))}
+									helperText="范围：0~1，留空不使用"
+									error={topP !== '' && topP !== null && !(parseFloat(topP || '0') >= 0 && parseFloat(topP || '0') <= 1)}
 								/>
 							</Stack>
 
@@ -261,7 +275,6 @@ export function Settings(props) {
 								helperText="使用 {lyrics} 表示歌词内容。示例：将以下歌词翻译成简体中文，保持原意和韵律：\n{lyrics}"
 							/>
 
-							
 							<Stack direction="row" spacing={2} style={{ width: '100%' }}>
 								<Button variant="outlined" onClick={async () => {
 									await betterncm.fs.mkdir('gpt-translated-lyrics');

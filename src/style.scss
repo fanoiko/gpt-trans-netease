@@ -97,3 +97,41 @@ body.can-genereate-gpt-translation {
 		opacity: 1;
 	}
 }
+
+// Settings
+.lyric-bar-settings {
+	.settings-api-key-helper {
+		.MuiFormHelperText-root {
+			transition: color 0.3s ease, opacity 0.3s ease;
+		}
+	}
+	.settings-api-test-btn {
+		min-width: 90px;
+		min-height: 56px;
+		position: relative;
+		
+		&.success {
+			border-color: #4caf50;
+			color: #4caf50;
+			
+			&:hover {
+				border-color: #388e3c;
+				background-color: rgba(46, 125, 50, 0.04);
+			}
+		}
+		&.error {
+			border-color: #f44336;
+			color: #f44336;
+			
+			&:hover {
+				border-color: #d32f2f;
+				background-color: rgba(211, 47, 47, 0.04);
+			}
+		}
+	}
+	.settings-model-autocomplete {
+		.MuiAutocomplete-endAdornment {
+			display: none;
+		}
+	}
+}
